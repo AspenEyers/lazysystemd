@@ -36,6 +36,11 @@ sudo make uninstall
 # Install build deps (if needed)
 sudo apt-get install build-essential debhelper golang-go gzip
 
+# You may need newer go: 
+wget https://go.dev/dl/go1.22.0.linux-amd64.tar.gz
+sudo tar -C /usr/local -xzf go1.22.0.linux-amd64.tar.gz
+sudo ln -s /usr/local/go/bin/go /usr/local/bin/go
+
 # Build the package
 dpkg-buildpackage -b -uc -us
 
