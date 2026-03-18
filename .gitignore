@@ -1,0 +1,25 @@
+# Build artifacts
+build/
+lazysystemd
+
+# Debian package build artifacts
+debian/lazysystemd/
+debian/.debhelper/
+*.deb
+*.buildinfo
+*.changes
+debian/*.substvars
+debian/*.log
+debian/debhelper-build-stamp
+
+# Go test binaries
+*.test
+
+# Go coverage files
+*.out
+
+# Temporary files
+*.swp
+*.swo
+*~
+.DS_Store

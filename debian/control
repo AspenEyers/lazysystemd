@@ -1,0 +1,21 @@
+Source: lazysystemd
+Section: admin
+Priority: optional
+Maintainer: Your Name <your.email@example.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.22), dh-golang, gzip
+Standards-Version: 4.6.1
+Homepage: https://github.com/lazysystemd
+Rules-Requires-Root: no
+
+Package: lazysystemd
+Architecture: any
+Depends: ${misc:Depends}, systemd
+Description: Terminal UI for monitoring and controlling systemd services
+ lazysystemd is a terminal user interface (TUI) application for monitoring
+ and controlling systemd services, inspired by lazydocker.
+ .
+ Features:
+  - View service status with real-time updates
+  - View and follow service logs
+  - Start, stop, restart, and reload services
+  - Simple keyboard-driven interface

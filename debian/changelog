@@ -1,0 +1,7 @@
+lazysystemd (1.0.0-1) unstable; urgency=medium
+
+  * Initial release
+  * Terminal UI for monitoring and controlling systemd services
+  * Features: service status monitoring, log viewing, service control
+
+ -- Your Name <your.email@example.com>  Wed, 19 Mar 2025 08:00:00 +0000

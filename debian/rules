@@ -1,0 +1,28 @@
+#!/usr/bin/make -f
+
+export DH_VERBOSE = 1
+export GOPROXY = direct
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	go build -o lazysystemd ./cmd/lazysystemd
+
+override_dh_auto_install:
+	# Install binary
+	install -d debian/lazysystemd/usr/bin
+	install -m 755 lazysystemd debian/lazysystemd/usr/bin/
+	# Install config example
+	mkdir -p debian/lazysystemd/etc/lazysystemd
+	cp config.example.yaml debian/lazysystemd/etc/lazysystemd/config.example.yaml
+
+override_dh_installman:
+	# Install and compress man page manually
+	install -d debian/lazysystemd/usr/share/man/man1
+	install -m 644 lazysystemd.1 debian/lazysystemd/usr/share/man/man1/
+	gzip -9 -n debian/lazysystemd/usr/share/man/man1/lazysystemd.1
+
+override_dh_dwz:
+	# Skip dwz compression (not needed for Go binaries)
+	:

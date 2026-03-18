@@ -1,0 +1,3 @@
+lazysystemd-dbgsym_1.0.0-1_amd64.ddeb debug optional automatic=yes
+lazysystemd_1.0.0-1_amd64.buildinfo admin optional
+lazysystemd_1.0.0-1_amd64.deb admin optional

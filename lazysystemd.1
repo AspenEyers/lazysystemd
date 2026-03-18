@@ -1,0 +1,118 @@
+.TH LAZYSYSTEMD 1 "March 2025" "lazysystemd 1.0.0" "User Commands"
+.SH NAME
+lazysystemd \- Terminal UI for monitoring and controlling systemd services
+.SH SYNOPSIS
+.B lazysystemd
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B lazysystemd
+is a terminal user interface (TUI) application for monitoring and controlling
+systemd services, inspired by lazydocker.
+.PP
+The application displays a split-pane interface:
+.IP \(bu 2
+Left pane: List of configured services with status indicators
+.IP \(bu 2
+Right pane: Recent logs for the selected service
+.IP \(bu 2
+Footer: Keybindings and status messages
+.SH OPTIONS
+.TP
+\fB\-config\fR \fIPATH\fR
+Path to configuration file (default: /etc/lazysystemd/config.yaml or ./config.yaml)
+.TP
+\fB\-h\fR, \fB\-help\fR
+Display help message
+.SH CONFIGURATION
+The configuration file is a YAML file listing systemd services to monitor:
+.PP
+.RS
+.nf
+services:
+  - service1.service
+  - service2.service
+  - service3.service
+.fi
+.RE
+.PP
+The default configuration file location is \fI/etc/lazysystemd/config.yaml\fR.
+An example configuration is provided at \fI/etc/lazysystemd/config.example.yaml\fR.
+.SH KEYBINDINGS
+.TP
+\fB↑\fR, \fBk\fR
+Move selection up
+.TP
+\fB↓\fR, \fBj\fR
+Move selection down
+.TP
+\fBg\fR
+Jump to top of service list
+.TP
+\fBG\fR
+Jump to bottom of service list
+.TP
+\fBs\fR
+Start selected service
+.TP
+\fBt\fR
+Stop selected service
+.TP
+\fBr\fR
+Restart selected service
+.TP
+\fBl\fR
+Reload selected service
+.TP
+\fBf\fR
+Toggle follow mode (live log streaming)
+.TP
+\fBR\fR
+Force refresh service states
+.TP
+\fBq\fR, \fBCtrl+C\fR
+Quit
+.SH STATUS INDICATORS
+.TP
+\fB●\fR
+Active and running
+.TP
+\fB○\fR
+Inactive
+.TP
+\fB✗\fR
+Failed
+.TP
+\fB→\fR
+Activating
+.TP
+\fB←\fR
+Deactivating
+.TP
+\fB?\fR
+Unknown/Error
+.SH FILES
+.TP
+\fI/etc/lazysystemd/config.yaml\fR
+System-wide configuration file
+.TP
+\fI/etc/lazysystemd/config.example.yaml\fR
+Example configuration file
+.SH REQUIREMENTS
+.B lazysystemd
+requires:
+.IP \(bu 2
+Linux with systemd
+.IP \(bu 2
+\fBsystemctl\fR(1) and \fBjournalctl\fR(1) available in PATH
+.SH AUTHOR
+Written by Aspen.
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR systemd (1)
+.SH BUGS
+Report bugs at https://github.com/lazysystemd/issues
+.SH COPYRIGHT
+Copyright \(co 2025 Aspen
+.br
+License: MIT
