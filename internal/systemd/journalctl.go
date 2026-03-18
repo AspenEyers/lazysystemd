@@ -11,7 +11,7 @@ import (
 
 // GetRecentLogs retrieves recent logs for a systemd service unit
 func GetRecentLogs(unitName string, lines int) ([]string, error) {
-	cmd := exec.Command("journalctl", "-u", unitName,
+	cmd := exec.Command("journalctl", getScopeFlag(), "-u", unitName,
 		"-n", fmt.Sprintf("%d", lines),
 		"--no-pager",
 		"-o", "short-iso")
@@ -37,7 +37,7 @@ func GetRecentLogs(unitName string, lines int) ([]string, error) {
 // FollowLogs streams logs for a systemd service unit
 // It returns a channel that receives log lines and a cleanup function
 func FollowLogs(ctx context.Context, unitName string) (<-chan string, func() error, error) {
-	cmd := exec.CommandContext(ctx, "journalctl", "-u", unitName,
+	cmd := exec.CommandContext(ctx, "journalctl", getScopeFlag(), "-u", unitName,
 		"-f",
 		"--no-pager",
 		"-o", "short-iso")

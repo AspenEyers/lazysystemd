@@ -3,6 +3,7 @@ package systemd
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 )
@@ -19,9 +20,17 @@ type ServiceState struct {
 	LastError     string
 }
 
+// getScopeFlag returns "--system" if running as root, "--user" otherwise
+func getScopeFlag() string {
+	if os.Geteuid() == 0 {
+		return "--system"
+	}
+	return "--user"
+}
+
 // GetServiceState retrieves the state of a systemd service unit
 func GetServiceState(unitName string) (*ServiceState, error) {
-	cmd := exec.Command("systemctl", "show", unitName,
+	cmd := exec.Command("systemctl", getScopeFlag(), "show", unitName,
 		"--no-pager",
 		"--property=Id,Description,LoadState,ActiveState,SubState,UnitFileState,MainPID")
 
@@ -96,7 +105,7 @@ func (s *ServiceState) GetStateIndicator() string {
 
 // StartService starts a systemd service
 func StartService(unitName string) error {
-	cmd := exec.Command("systemctl", "start", unitName)
+	cmd := exec.Command("systemctl", getScopeFlag(), "start", unitName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to start service: %w", err)
 	}
@@ -105,7 +114,7 @@ func StartService(unitName string) error {
 
 // StopService stops a systemd service
 func StopService(unitName string) error {
-	cmd := exec.Command("systemctl", "stop", unitName)
+	cmd := exec.Command("systemctl", getScopeFlag(), "stop", unitName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to stop service: %w", err)
 	}
@@ -114,7 +123,7 @@ func StopService(unitName string) error {
 
 // RestartService restarts a systemd service
 func RestartService(unitName string) error {
-	cmd := exec.Command("systemctl", "restart", unitName)
+	cmd := exec.Command("systemctl", getScopeFlag(), "restart", unitName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to restart service: %w", err)
 	}
@@ -123,7 +132,7 @@ func RestartService(unitName string) error {
 
 // ReloadService reloads a systemd service
 func ReloadService(unitName string) error {
-	cmd := exec.Command("systemctl", "reload", unitName)
+	cmd := exec.Command("systemctl", getScopeFlag(), "reload", unitName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to reload service: %w", err)
 	}
