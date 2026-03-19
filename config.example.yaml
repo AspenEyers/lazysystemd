@@ -1,3 +1,5 @@
 services:
-  - network-manager.service
-  - docker.service
+  group1:
+    - blah.service
+  group2:
+    - another.service

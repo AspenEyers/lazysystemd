@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/lazysystemd/internal/systemd"
 )
 
 var (
@@ -80,22 +81,39 @@ func (m *Model) View() string {
 func (m *Model) renderServicesList(height int) string {
 	var lines []string
 
-	for i, service := range m.services {
+	for i, item := range m.items {
 		var line string
-		indicator := "?"
-		if service != nil {
-			indicator = service.GetStateIndicator()
-		}
-
-		name := m.serviceNames[i]
-		if len(name) > leftPaneWidth-5 {
-			name = name[:leftPaneWidth-5] + "..."
-		}
-
-		if i == m.selectedIndex {
-			line = selectedStyle.Render(fmt.Sprintf(" %s %s", indicator, name))
+		
+		if item.IsSection {
+			// Render section header
+			sectionName := item.SectionName
+			if len(sectionName) > leftPaneWidth-5 {
+				sectionName = sectionName[:leftPaneWidth-5] + "..."
+			}
+			// Section headers are not selectable, but we can still highlight them differently
+			line = statusStyle.Bold(true).Foreground(lipgloss.Color("62")).Render(fmt.Sprintf(" ┌─ %s ─", sectionName))
 		} else {
-			line = normalStyle.Render(fmt.Sprintf(" %s %s", indicator, name))
+			// Render service
+			var service *systemd.ServiceState
+			if idx, ok := m.serviceMap[item.ServiceName]; ok && idx < len(m.services) {
+				service = m.services[idx]
+			}
+			
+			indicator := "?"
+			if service != nil {
+				indicator = service.GetStateIndicator()
+			}
+
+			name := item.ServiceName
+			if len(name) > leftPaneWidth-5 {
+				name = name[:leftPaneWidth-5] + "..."
+			}
+
+			if i == m.selectedIndex {
+				line = selectedStyle.Render(fmt.Sprintf(" %s %s", indicator, name))
+			} else {
+				line = normalStyle.Render(fmt.Sprintf(" %s %s", indicator, name))
+			}
 		}
 
 		lines = append(lines, line)

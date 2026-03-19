@@ -10,7 +10,8 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Services []string `yaml:"services"`
+	Services []string
+	Sections map[string][]string
 }
 
 // Load reads and parses the configuration file
@@ -40,19 +41,55 @@ func Load(path string) (*Config, error) {
 	// Check if file is empty
 	if len(data) == 0 {
 		fmt.Fprintf(os.Stderr, "reading yaml from %s and is empty\n", path)
-		return &Config{Services: []string{}}, nil
+		return &Config{Services: []string{}, Sections: make(map[string][]string)}, nil
 	}
 
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	// Parse YAML into a map to handle arbitrary section keys
+	var rawConfig map[string]interface{}
+	if err := yaml.Unmarshal(data, &rawConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
-	// Check if YAML is empty (no services configured)
-	if len(config.Services) == 0 {
-		fmt.Fprintf(os.Stderr, "reading yaml from %s and is empty\n", path)
-		return &Config{Services: []string{}}, nil
+	config := &Config{
+		Services: []string{},
+		Sections: make(map[string][]string),
 	}
 
-	return &config, nil
+	// Extract services and sections
+	for key, value := range rawConfig {
+		if key == "services" {
+			// Handle services - can be either a list or a map of groups
+			if servicesList, ok := value.([]interface{}); ok {
+				// Backward compatibility: flat list of services
+				for _, svc := range servicesList {
+					if svcStr, ok := svc.(string); ok {
+						config.Services = append(config.Services, svcStr)
+					}
+				}
+			} else if servicesMap, ok := value.(map[string]interface{}); ok {
+				// New format: services is a map of group names to service lists
+				for groupName, groupValue := range servicesMap {
+					if groupList, ok := groupValue.([]interface{}); ok {
+						services := make([]string, 0, len(groupList))
+						for _, svc := range groupList {
+							if svcStr, ok := svc.(string); ok {
+								services = append(services, svcStr)
+							}
+						}
+						if len(services) > 0 {
+							config.Sections[groupName] = services
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Check if YAML is empty (no services configured)
+	if len(config.Services) == 0 && len(config.Sections) == 0 {
+		fmt.Fprintf(os.Stderr, "reading yaml from %s and is empty\n", path)
+		return &Config{Services: []string{}, Sections: make(map[string][]string)}, nil
+	}
+
+	return config, nil
 }

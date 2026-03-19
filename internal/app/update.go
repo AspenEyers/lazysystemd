@@ -10,6 +10,26 @@ import (
 
 // Update handles messages and updates the model
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Ensure selectedIndex doesn't point to a section header
+	if m.selectedIndex < len(m.items) && m.items[m.selectedIndex].IsSection {
+		// Find next service
+		for i := m.selectedIndex + 1; i < len(m.items); i++ {
+			if !m.items[i].IsSection {
+				m.selectedIndex = i
+				break
+			}
+		}
+		// If no service found after, try before
+		if m.selectedIndex < len(m.items) && m.items[m.selectedIndex].IsSection {
+			for i := m.selectedIndex - 1; i >= 0; i-- {
+				if !m.items[i].IsSection {
+					m.selectedIndex = i
+					break
+				}
+			}
+		}
+	}
+	
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -63,7 +83,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			m.setStatus(fmt.Sprintf("Failed to %s: %v", msg.action, msg.err))
 		} else {
-			m.setStatus(fmt.Sprintf("Successfully %sed %s", msg.action, m.serviceNames[m.selectedIndex]))
+			if m.selectedIndex < len(m.items) && !m.items[m.selectedIndex].IsSection {
+				m.setStatus(fmt.Sprintf("Successfully %sed %s", msg.action, m.items[m.selectedIndex].ServiceName))
+			}
 		}
 		// Refresh services after action
 		return m, m.refreshServices()
@@ -108,35 +130,55 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case key.Matches(msg, keyMap.Up):
-		if m.selectedIndex > 0 {
-			m.selectedIndex--
-			m.stopFollowMode()
-			m.followMode = false
-			cmd = m.loadLogs()
+		// Move up, skipping section headers
+		for i := m.selectedIndex - 1; i >= 0; i-- {
+			if !m.items[i].IsSection {
+				m.selectedIndex = i
+				m.stopFollowMode()
+				m.followMode = false
+				cmd = m.loadLogs()
+				break
+			}
 		}
 
 	case key.Matches(msg, keyMap.Down):
-		if m.selectedIndex < len(m.serviceNames)-1 {
-			m.selectedIndex++
-			m.stopFollowMode()
-			m.followMode = false
-			cmd = m.loadLogs()
+		// Move down, skipping section headers
+		for i := m.selectedIndex + 1; i < len(m.items); i++ {
+			if !m.items[i].IsSection {
+				m.selectedIndex = i
+				m.stopFollowMode()
+				m.followMode = false
+				cmd = m.loadLogs()
+				break
+			}
 		}
 
 	case key.Matches(msg, keyMap.Top):
-		if m.selectedIndex != 0 {
-			m.selectedIndex = 0
-			m.stopFollowMode()
-			m.followMode = false
-			cmd = m.loadLogs()
+		// Jump to first service (not section header)
+		for i := 0; i < len(m.items); i++ {
+			if !m.items[i].IsSection {
+				if m.selectedIndex != i {
+					m.selectedIndex = i
+					m.stopFollowMode()
+					m.followMode = false
+					cmd = m.loadLogs()
+				}
+				break
+			}
 		}
 
 	case key.Matches(msg, keyMap.Bottom):
-		if m.selectedIndex != len(m.serviceNames)-1 {
-			m.selectedIndex = len(m.serviceNames) - 1
-			m.stopFollowMode()
-			m.followMode = false
-			cmd = m.loadLogs()
+		// Jump to last service (not section header)
+		for i := len(m.items) - 1; i >= 0; i-- {
+			if !m.items[i].IsSection {
+				if m.selectedIndex != i {
+					m.selectedIndex = i
+					m.stopFollowMode()
+					m.followMode = false
+					cmd = m.loadLogs()
+				}
+				break
+			}
 		}
 
 	case key.Matches(msg, keyMap.Start):

@@ -15,10 +15,18 @@ const (
 	refreshInterval = 1 * time.Second
 )
 
+// ListItem represents an item in the services list (either a section header or a service)
+type ListItem struct {
+	IsSection bool
+	SectionName string
+	ServiceName string
+}
+
 // Model represents the application state
 type Model struct {
 	services      []*systemd.ServiceState
-	serviceNames  []string
+	items         []ListItem
+	serviceMap    map[string]int // Maps service name to index in services slice
 	selectedIndex int
 	logLines      []string
 	followMode    bool
@@ -34,11 +42,36 @@ type Model struct {
 	followCleanup func() error
 }
 
-// NewModel creates a new model with the given service names
-func NewModel(serviceNames []string) *Model {
+// NewModel creates a new model with the given list items
+func NewModel(items []ListItem) *Model {
+	// Build service map and extract service names
+	serviceMap := make(map[string]int)
+	serviceIndex := 0
+	serviceNames := make([]string, 0)
+	
+	// Find first service index (not a section header)
+	firstServiceIndex := -1
+	for i, item := range items {
+		if !item.IsSection {
+			serviceMap[item.ServiceName] = serviceIndex
+			serviceNames = append(serviceNames, item.ServiceName)
+			if firstServiceIndex == -1 {
+				firstServiceIndex = i
+			}
+			serviceIndex++
+		}
+	}
+	
+	// Default to first service if available, otherwise 0
+	selectedIndex := 0
+	if firstServiceIndex != -1 {
+		selectedIndex = firstServiceIndex
+	}
+	
 	return &Model{
-		serviceNames:  serviceNames,
-		selectedIndex: 0,
+		items:         items,
+		serviceMap:    serviceMap,
+		selectedIndex: selectedIndex,
 		logLines:      []string{},
 		followMode:    false,
 		statusMessage: "Ready",
@@ -71,16 +104,30 @@ type refreshServicesMsg struct {
 
 func (m *Model) refreshServices() tea.Cmd {
 	return func() tea.Msg {
-		services := make([]*systemd.ServiceState, len(m.serviceNames))
-		for i, name := range m.serviceNames {
-			state, err := systemd.GetServiceState(name)
-			if err != nil {
-				state = &systemd.ServiceState{
-					Name:      name,
-					LastError: err.Error(),
-				}
+		// Count actual services (not section headers)
+		serviceCount := 0
+		for _, item := range m.items {
+			if !item.IsSection {
+				serviceCount++
 			}
-			services[i] = state
+		}
+		
+		services := make([]*systemd.ServiceState, serviceCount)
+		serviceIndex := 0
+		for _, item := range m.items {
+			if !item.IsSection {
+				state, err := systemd.GetServiceState(item.ServiceName)
+				if err != nil {
+					state = &systemd.ServiceState{
+						Name:      item.ServiceName,
+						LastError: err.Error(),
+					}
+				}
+				services[serviceIndex] = state
+				// Update service map
+				m.serviceMap[item.ServiceName] = serviceIndex
+				serviceIndex++
+			}
 		}
 		return refreshServicesMsg{services: services}
 	}
@@ -93,11 +140,17 @@ type loadLogsMsg struct {
 }
 
 func (m *Model) loadLogs() tea.Cmd {
-	if len(m.serviceNames) == 0 || m.selectedIndex >= len(m.serviceNames) {
+	if len(m.items) == 0 || m.selectedIndex >= len(m.items) {
 		return nil
 	}
 
-	serviceName := m.serviceNames[m.selectedIndex]
+	// Skip section headers
+	item := m.items[m.selectedIndex]
+	if item.IsSection {
+		return nil
+	}
+
+	serviceName := item.ServiceName
 	return func() tea.Msg {
 		logs, err := systemd.GetRecentLogs(serviceName, 200)
 		if err != nil {
@@ -111,11 +164,17 @@ func (m *Model) loadLogs() tea.Cmd {
 func (m *Model) startFollowMode() tea.Cmd {
 	m.stopFollowMode()
 
-	if len(m.serviceNames) == 0 || m.selectedIndex >= len(m.serviceNames) {
+	if len(m.items) == 0 || m.selectedIndex >= len(m.items) {
 		return nil
 	}
 
-	serviceName := m.serviceNames[m.selectedIndex]
+	// Skip section headers
+	item := m.items[m.selectedIndex]
+	if item.IsSection {
+		return nil
+	}
+
+	serviceName := item.ServiceName
 	m.followCtx, m.followCancel = context.WithCancel(context.Background())
 
 	return func() tea.Msg {
@@ -161,11 +220,17 @@ type actionMsg struct {
 }
 
 func (m *Model) performAction(action string) tea.Cmd {
-	if len(m.serviceNames) == 0 || m.selectedIndex >= len(m.serviceNames) {
+	if len(m.items) == 0 || m.selectedIndex >= len(m.items) {
 		return nil
 	}
 
-	serviceName := m.serviceNames[m.selectedIndex]
+	// Skip section headers
+	item := m.items[m.selectedIndex]
+	if item.IsSection {
+		return nil
+	}
+
+	serviceName := item.ServiceName
 	return func() tea.Msg {
 		var err error
 		switch action {
