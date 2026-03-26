@@ -15,6 +15,20 @@ const (
 	refreshInterval = 1 * time.Second
 )
 
+type rightPaneMode int
+
+const (
+	rightPaneLogs rightPaneMode = iota
+	rightPaneCat
+)
+
+type focusPane int
+
+const (
+	focusLeft focusPane = iota
+	focusRight
+)
+
 // ListItem represents an item in the services list (either a section header or a service)
 type ListItem struct {
 	IsSection bool
@@ -29,7 +43,14 @@ type Model struct {
 	serviceMap    map[string]int // Maps service name to index in services slice
 	selectedIndex int
 	logLines      []string
+	catLines      []string
 	followMode    bool
+	helpMode      bool
+	rightMode     rightPaneMode
+	focus         focusPane
+	// Right pane scroll state (only used when focused; logs default to tail when not focused).
+	logTop int
+	catTop int
 	width         int
 	height        int
 	statusMessage string
@@ -73,7 +94,13 @@ func NewModel(items []ListItem) *Model {
 		serviceMap:    serviceMap,
 		selectedIndex: selectedIndex,
 		logLines:      []string{},
-		followMode:    false,
+		catLines:      []string{},
+		followMode:    true, // default to live-follow mode
+		helpMode:      false,
+		rightMode:     rightPaneLogs,
+		focus:         focusLeft,
+		logTop:        -1,
+		catTop:        0,
 		statusMessage: "Ready",
 	}
 }
@@ -83,6 +110,7 @@ func (m *Model) Init() tea.Cmd {
 	return tea.Batch(
 		m.refreshServices(),
 		m.loadLogs(),
+		m.startFollowMode(),
 		m.tick(),
 	)
 }
@@ -160,6 +188,41 @@ func (m *Model) loadLogs() tea.Cmd {
 	}
 }
 
+// loadCatCmd returns a command that loads `systemctl cat` output for the selected service.
+type loadCatMsg struct {
+	catLines []string
+	err      error
+}
+
+func (m *Model) loadCat() tea.Cmd {
+	if len(m.items) == 0 || m.selectedIndex >= len(m.items) {
+		return nil
+	}
+
+	// Skip section headers
+	item := m.items[m.selectedIndex]
+	if item.IsSection {
+		return nil
+	}
+
+	serviceName := item.ServiceName
+	return func() tea.Msg {
+		lines, err := systemd.GetServiceCat(serviceName)
+		if err != nil {
+			return loadCatMsg{err: err}
+		}
+		return loadCatMsg{catLines: lines}
+	}
+}
+
+// loadRightPane decides what to show in the right pane based on the current mode.
+func (m *Model) loadRightPane() tea.Cmd {
+	if m.followMode || m.rightMode == rightPaneLogs {
+		return m.loadLogs()
+	}
+	return m.loadCat()
+}
+
 // startFollowMode starts following logs for the selected service
 func (m *Model) startFollowMode() tea.Cmd {
 	m.stopFollowMode()
@@ -182,6 +245,8 @@ func (m *Model) startFollowMode() tea.Cmd {
 		if err != nil {
 			return followErrorMsg{err: err}
 		}
+		// When following, ensure the right pane is in "logs" mode.
+		m.rightMode = rightPaneLogs
 		// Store cleanup in a way that's accessible
 		return followStartedMsg{logChan: logChan, cleanup: cleanup}
 	}
@@ -242,10 +307,26 @@ func (m *Model) performAction(action string) tea.Cmd {
 			err = systemd.RestartService(serviceName)
 		case "reload":
 			err = systemd.ReloadService(serviceName)
+		case "enable":
+			err = systemd.EnableService(serviceName)
+		case "disable":
+			err = systemd.DisableService(serviceName)
 		default:
 			err = fmt.Errorf("unknown action: %s", action)
 		}
 		return actionMsg{action: action, err: err}
+	}
+}
+
+type daemonReloadMsg struct {
+	err error
+}
+
+// performDaemonReload runs systemctl daemon-reload and returns a message for the update loop.
+func (m *Model) performDaemonReload() tea.Cmd {
+	return func() tea.Msg {
+		err := systemd.DaemonReload()
+		return daemonReloadMsg{err: err}
 	}
 }
 
@@ -270,10 +351,18 @@ type KeyMap struct {
 	Down    key.Binding
 	Top     key.Binding
 	Bottom  key.Binding
+	Left    key.Binding
+	Right   key.Binding
 	Start   key.Binding
 	Stop    key.Binding
 	Restart key.Binding
 	Reload  key.Binding
+	Enable  key.Binding
+	Disable key.Binding
+	DaemonReload key.Binding
+	Help    key.Binding
+	Escape  key.Binding
+	Enter   key.Binding
 	Follow  key.Binding
 	Refresh key.Binding
 	Quit    key.Binding
@@ -296,6 +385,14 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("G"),
 		key.WithHelp("G", "bottom"),
 	),
+	Left: key.NewBinding(
+		key.WithKeys("left"),
+		key.WithHelp("←", "focus left"),
+	),
+	Right: key.NewBinding(
+		key.WithKeys("right"),
+		key.WithHelp("→", "focus right"),
+	),
 	Start: key.NewBinding(
 		key.WithKeys("s"),
 		key.WithHelp("s", "start"),
@@ -309,8 +406,32 @@ var DefaultKeyMap = KeyMap{
 		key.WithHelp("r", "restart"),
 	),
 	Reload: key.NewBinding(
+		key.WithKeys("L"),
+		key.WithHelp("L", "reload"),
+	),
+	Enable: key.NewBinding(
+		key.WithKeys("e"),
+		key.WithHelp("e", "enable"),
+	),
+	Disable: key.NewBinding(
+		key.WithKeys("d"),
+		key.WithHelp("d", "disable"),
+	),
+	DaemonReload: key.NewBinding(
 		key.WithKeys("l"),
-		key.WithHelp("l", "reload"),
+		key.WithHelp("l", "daemon-reload"),
+	),
+	Help: key.NewBinding(
+		key.WithKeys("h"),
+		key.WithHelp("h", "help"),
+	),
+	Escape: key.NewBinding(
+		key.WithKeys("esc", "escape"),
+		key.WithHelp("esc", "close help"),
+	),
+	Enter: key.NewBinding(
+		key.WithKeys("enter", "return"),
+		key.WithHelp("enter", "systemctl cat"),
 	),
 	Follow: key.NewBinding(
 		key.WithKeys("f"),

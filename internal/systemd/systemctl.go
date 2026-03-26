@@ -81,6 +81,27 @@ func GetServiceState(unitName string) (*ServiceState, error) {
 	return state, nil
 }
 
+// GetServiceCat runs `systemctl cat <unit>` and returns the unit file contents.
+func GetServiceCat(unitName string) ([]string, error) {
+	// `systemctl cat` prints the unit file and any drop-ins.
+	cmd := exec.Command("systemctl", getScopeFlag(), "--no-pager", "cat", unitName)
+	output, err := cmd.Output()
+	if err != nil {
+		// Include stdout/stderr context via error string (systemctl tends to print useful info).
+		return nil, fmt.Errorf("systemctl cat failed: %w", err)
+	}
+
+	var lines []string
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("failed to parse systemctl cat output: %w", err)
+	}
+	return lines, nil
+}
+
 // GetStateIndicator returns a compact state indicator for display
 func (s *ServiceState) GetStateIndicator() string {
 	switch s.ActiveState {
@@ -97,6 +118,26 @@ func (s *ServiceState) GetStateIndicator() string {
 		return "→"
 	case "deactivating":
 		return "←"
+	default:
+		return "?"
+	}
+}
+
+// GetEnabledIndicator returns a compact enabled/disabled indicator for display.
+func (s *ServiceState) GetEnabledIndicator() string {
+	switch s.UnitFileState {
+	case "enabled":
+		return "E"
+	case "disabled":
+		return "D"
+	case "static":
+		return "S"
+	case "masked":
+		return "M"
+	case "indirect":
+		return "I"
+	case "":
+		return "?"
 	default:
 		return "?"
 	}
@@ -135,6 +176,33 @@ func ReloadService(unitName string) error {
 	cmd := exec.Command("systemctl", getScopeFlag(), "reload", unitName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to reload service: %w", err)
+	}
+	return nil
+}
+
+// EnableService enables a systemd service unit.
+func EnableService(unitName string) error {
+	cmd := exec.Command("systemctl", getScopeFlag(), "enable", unitName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to enable service: %w", err)
+	}
+	return nil
+}
+
+// DisableService disables a systemd service unit.
+func DisableService(unitName string) error {
+	cmd := exec.Command("systemctl", getScopeFlag(), "disable", unitName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to disable service: %w", err)
+	}
+	return nil
+}
+
+// DaemonReload runs "systemctl daemon-reload".
+func DaemonReload() error {
+	cmd := exec.Command("systemctl", getScopeFlag(), "daemon-reload")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to daemon-reload: %w", err)
 	}
 	return nil
 }

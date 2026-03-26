@@ -92,9 +92,12 @@ lazysystemd -config /path/to/config.yaml
 | `s` | Start service |
 | `t` | Stop service |
 | `r` | Restart service |
-| `l` | Reload service |
+| `L` | Reload selected service |
+| `e` | Enable selected service |
+| `d` | Disable selected service |
+| `l` | `systemctl daemon-reload` |
 | `f` | Toggle live log following |
-| `R` | Force refresh |
+| `R` | Refresh all services statuses |
 | `q` | Quit |
 
 ## Status Indicators
@@ -105,6 +108,12 @@ lazysystemd -config /path/to/config.yaml
 - `→` = Activating
 - `←` = Deactivating
 - `?` = Unknown/Error
+
+Enabled/disabled indicator (shown next to the active state):
+- `E` = enabled
+- `D` = disabled
+- `S` = static
+- `M` = masked
 
 
 ## How It Works
