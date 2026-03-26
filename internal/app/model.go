@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -42,6 +43,7 @@ type Model struct {
 	items         []ListItem
 	serviceMap    map[string]int // Maps service name to index in services slice
 	selectedIndex int
+	hostname      string
 	logLines      []string
 	catLines      []string
 	followMode    bool
@@ -88,11 +90,17 @@ func NewModel(items []ListItem) *Model {
 	if firstServiceIndex != -1 {
 		selectedIndex = firstServiceIndex
 	}
+
+	host := "unknown"
+	if h, err := os.Hostname(); err == nil && h != "" {
+		host = h
+	}
 	
 	return &Model{
 		items:         items,
 		serviceMap:    serviceMap,
 		selectedIndex: selectedIndex,
+		hostname:      host,
 		logLines:      []string{},
 		catLines:      []string{},
 		followMode:    true, // default to live-follow mode
@@ -127,6 +135,7 @@ type tickMsg time.Time
 // refreshServicesCmd returns a command that refreshes all service states
 type refreshServicesMsg struct {
 	services []*systemd.ServiceState
+	serviceMap map[string]int
 	err     error
 }
 
@@ -141,6 +150,7 @@ func (m *Model) refreshServices() tea.Cmd {
 		}
 		
 		services := make([]*systemd.ServiceState, serviceCount)
+		serviceMap := make(map[string]int, serviceCount)
 		serviceIndex := 0
 		for _, item := range m.items {
 			if !item.IsSection {
@@ -152,12 +162,12 @@ func (m *Model) refreshServices() tea.Cmd {
 					}
 				}
 				services[serviceIndex] = state
-				// Update service map
-				m.serviceMap[item.ServiceName] = serviceIndex
+				// Build service map (apply in Update to avoid mutating model from a Cmd goroutine).
+				serviceMap[item.ServiceName] = serviceIndex
 				serviceIndex++
 			}
 		}
-		return refreshServicesMsg{services: services}
+		return refreshServicesMsg{services: services, serviceMap: serviceMap}
 	}
 }
 
@@ -272,7 +282,8 @@ func (m *Model) stopFollowMode() {
 		m.followCancel = nil
 	}
 	if m.followCleanup != nil {
-		m.followCleanup()
+		// Never block the UI loop on process cleanup.
+		go m.followCleanup()
 		m.followCleanup = nil
 	}
 	m.followChan = nil

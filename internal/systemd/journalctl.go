@@ -7,6 +7,7 @@ import (
 	"io"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 // GetRecentLogs retrieves recent logs for a systemd service unit
@@ -72,12 +73,23 @@ func FollowLogs(ctx context.Context, unitName string) (<-chan string, func() err
 	}()
 
 	cleanup := func() error {
+		// Cleanup must never block the UI thread. Try to kill and wait briefly.
 		if cmd.Process != nil {
-			if err := cmd.Process.Kill(); err != nil {
-				return fmt.Errorf("failed to kill journalctl process: %w", err)
-			}
+			_ = cmd.Process.Kill()
 		}
-		return cmd.Wait()
+
+		done := make(chan error, 1)
+		go func() {
+			done <- cmd.Wait()
+		}()
+
+		select {
+		case err := <-done:
+			return err
+		case <-time.After(500 * time.Millisecond):
+			// Give up waiting; the context-based kill should still terminate the process soon.
+			return nil
+		}
 	}
 
 	return logChan, cleanup, nil

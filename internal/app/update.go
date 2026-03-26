@@ -44,6 +44,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case refreshServicesMsg:
 		if msg.err == nil {
 			m.services = msg.services
+			if msg.serviceMap != nil {
+				m.serviceMap = msg.serviceMap
+			}
 		}
 		return m, nil
 

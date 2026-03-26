@@ -88,7 +88,11 @@ func (m *Model) View() string {
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 
 	// Header
-	header := titleStyle.Height(headerHeight).Render("lazysystemd")
+	headerText := "lazysystemd"
+	if m.hostname != "" {
+		headerText = fmt.Sprintf("lazysystemd - %s", m.hostname)
+	}
+	header := titleStyle.Height(headerHeight).Render(headerText)
 
 	// Footer
 	footer := m.renderFooter()
@@ -192,7 +196,25 @@ func (m *Model) renderServicesList(height int) string {
 		innerHeight = 1
 	}
 
-	for i, item := range m.items {
+	// Scroll window so the selected row stays visible.
+	startIdx := 0
+	if len(m.items) > innerHeight {
+		startIdx = m.selectedIndex - (innerHeight / 2)
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		maxStart := len(m.items) - innerHeight
+		if startIdx > maxStart {
+			startIdx = maxStart
+		}
+	}
+	endIdx := startIdx + innerHeight
+	if endIdx > len(m.items) {
+		endIdx = len(m.items)
+	}
+
+	for i := startIdx; i < endIdx; i++ {
+		item := m.items[i]
 		var line string
 		
 		if item.IsSection {
@@ -433,6 +455,7 @@ func (m *Model) renderCat(height int) string {
 func (m *Model) renderFooter() string {
 	keyMap := DefaultKeyMap
 	keys := []string{
+		keyMap.Help.Help().Key + ":" + keyMap.Help.Help().Desc,
 		keyMap.Up.Help().Key + ":" + keyMap.Up.Help().Desc,
 		keyMap.Down.Help().Key + ":" + keyMap.Down.Help().Desc,
 		keyMap.Start.Help().Key + ":" + keyMap.Start.Help().Desc,
@@ -444,7 +467,6 @@ func (m *Model) renderFooter() string {
 		keyMap.Enable.Help().Key + ":" + keyMap.Enable.Help().Desc,
 		keyMap.Disable.Help().Key + ":" + keyMap.Disable.Help().Desc,
 		keyMap.DaemonReload.Help().Key + ":" + keyMap.DaemonReload.Help().Desc,
-		keyMap.Help.Help().Key + ":" + keyMap.Help.Help().Desc,
 		keyMap.Follow.Help().Key + ":" + keyMap.Follow.Help().Desc,
 		keyMap.Quit.Help().Key + ":" + keyMap.Quit.Help().Desc,
 	}
