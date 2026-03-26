@@ -64,7 +64,7 @@ That's it. No dependencies beyond Go and systemd.
 ## Configuration
 
 The app defaults to reading configuration from:
-- `$HOME/.config/lazysystemd/config.yaml`
+- `/usr/local/etc/lazysystemd/config.yaml`
 
 If the file doesn't exist, it will be created automatically as an empty file. If the file is empty, you'll see a message: `reading yaml from ... and is empty`
 

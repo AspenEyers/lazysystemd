@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/lazysystemd/internal/app"
@@ -12,13 +11,8 @@ import (
 )
 
 func main() {
-	// Default to $HOME/.config/lazysystemd/config.yaml
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error getting home directory: %v\n", err)
-		os.Exit(1)
-	}
-	defaultConfig := filepath.Join(homeDir, ".config", "lazysystemd", "config.yaml")
+	// Default to a system-wide config path.
+	defaultConfig := "/usr/local/etc/lazysystemd/config.yaml"
 
 	configPath := flag.String("config", defaultConfig, "Path to configuration file")
 	flag.Parse()
