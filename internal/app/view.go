@@ -9,52 +9,82 @@ import (
 	"github.com/lazysystemd/internal/systemd"
 )
 
-var (
-	// Styles
-	titleStyle = lipgloss.NewStyle().
+type uiStyles struct {
+	title         lipgloss.Style
+	selected      lipgloss.Style
+	selectedCat   lipgloss.Style
+	normal        lipgloss.Style
+	status        lipgloss.Style
+	error         lipgloss.Style
+	success       lipgloss.Style
+	border        lipgloss.Style
+	focusedBorder lipgloss.Style
+	footer        lipgloss.Style
+}
+
+func (m *Model) styles() uiStyles {
+	blue := lipgloss.Color("39")
+
+	// Default: dark theme
+	if !m.invertTheme {
+		return uiStyles{
+			title: lipgloss.NewStyle().Bold(true).Foreground(blue),
+			selected: lipgloss.NewStyle().
+				Bold(true).
+				Background(lipgloss.Color("62")).
+				Foreground(lipgloss.Color("230")),
+			selectedCat: lipgloss.NewStyle().
+				Bold(true).
+				Background(lipgloss.Color("62")).
+				Foreground(blue),
+			normal:  lipgloss.NewStyle().Foreground(lipgloss.Color("250")),
+			status:  lipgloss.NewStyle().Foreground(lipgloss.Color("240")),
+			error:   lipgloss.NewStyle().Foreground(lipgloss.Color("196")),
+			success: lipgloss.NewStyle().Foreground(lipgloss.Color("46")),
+			border: lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color("62")),
+			focusedBorder: lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(blue),
+			footer: lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Height(2),
+		}
+	}
+
+	// Inverted: light theme
+	return uiStyles{
+		title: lipgloss.NewStyle().Bold(true).Foreground(blue).Background(lipgloss.Color("15")),
+		selected: lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("205"))
-
-	selectedStyle = lipgloss.NewStyle().
+			Background(blue).
+			Foreground(lipgloss.Color("15")),
+		selectedCat: lipgloss.NewStyle().
 			Bold(true).
-			Background(lipgloss.Color("62")).
-			Foreground(lipgloss.Color("230"))
-
-	selectedCatStyle = lipgloss.NewStyle().
-			Bold(true).
-			Background(lipgloss.Color("62")).
-			Foreground(lipgloss.Color("213"))
-
-	normalStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("250"))
-
-	statusStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196"))
-
-	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("46"))
-
-	borderStyle = lipgloss.NewStyle().
+			Background(blue).
+			Foreground(lipgloss.Color("15")),
+		normal:  lipgloss.NewStyle().Foreground(lipgloss.Color("232")).Background(lipgloss.Color("15")),
+		status:  lipgloss.NewStyle().Foreground(lipgloss.Color("238")).Background(lipgloss.Color("15")),
+		error:   lipgloss.NewStyle().Foreground(lipgloss.Color("160")).Background(lipgloss.Color("15")),
+		success: lipgloss.NewStyle().Foreground(lipgloss.Color("28")).Background(lipgloss.Color("15")),
+		border: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62"))
-
-	focusedBorderStyle = lipgloss.NewStyle().
+			BorderForeground(lipgloss.Color("244")).
+			Background(lipgloss.Color("15")),
+		focusedBorder: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("205"))
-
-	footerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
-			Height(2)
-)
+			BorderForeground(blue).
+			Background(lipgloss.Color("15")),
+		footer: lipgloss.NewStyle().Foreground(lipgloss.Color("238")).Background(lipgloss.Color("15")).Height(2),
+	}
+}
 
 // View renders the UI
 func (m *Model) View() string {
 	if m.width == 0 || m.height == 0 {
 		return "Initializing..."
 	}
+
+	s := m.styles()
 
 	// When help is open, render a full-screen help panel.
 	if m.helpMode {
@@ -88,11 +118,12 @@ func (m *Model) View() string {
 	content := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 
 	// Header
-	headerText := "lazysystemd"
-	if m.hostname != "" {
-		headerText = fmt.Sprintf("lazysystemd - %s", m.hostname)
+	host := m.hostname
+	if host == "" {
+		host = "unknown"
 	}
-	header := titleStyle.Height(headerHeight).Render(headerText)
+	headerText := fmt.Sprintf("lazysystemd - %s - CPU %.1f%%", host, m.cpuUsage)
+	header := s.title.Height(headerHeight).Render(headerText)
 
 	// Footer
 	footer := m.renderFooter()
@@ -113,6 +144,7 @@ func (m *Model) renderRightPane(height int) string {
 }
 
 func (m *Model) renderHelp() string {
+	s := m.styles()
 	headerHeight := 1
 	footerHeight := 2
 
@@ -125,7 +157,7 @@ func (m *Model) renderHelp() string {
 		contentHeight = 1
 	}
 
-	header := titleStyle.Height(headerHeight).Render("lazysystemd (help)")
+	header := s.title.Height(headerHeight).Render("lazysystemd (help)")
 	footer := m.renderFooter()
 
 	innerHeight := contentHeight - 2
@@ -152,6 +184,7 @@ func (m *Model) renderHelp() string {
 		"  f             Toggle follow mode (live logs)",
 		"  R             Refresh statuses (and right pane)",
 		"  Enter         Show `systemctl cat` for selected service",
+		"  p             Toggle theme (invert colors)",
 		"  q/ctrl+c      Quit",
 		"",
 		"Icons",
@@ -183,13 +216,14 @@ func (m *Model) renderHelp() string {
 	}
 
 	content := strings.Join(lines, "\n")
-	helpBox := borderStyle.Width(m.width).Height(contentHeight).Render(content)
+	helpBox := s.border.Width(m.width).Height(contentHeight).Render(content)
 
 	return lipgloss.JoinVertical(lipgloss.Left, header, helpBox, footer)
 }
 
 // renderServicesList renders the left pane with the services list
 func (m *Model) renderServicesList(height int) string {
+	s := m.styles()
 	var lines []string
 	innerHeight := height - 2 // lipgloss border consumes top+bottom
 	if innerHeight < 1 {
@@ -231,7 +265,7 @@ func (m *Model) renderServicesList(height int) string {
 				sectionName = string(r[:maxSectionWidth]) + "..."
 			}
 			// Section headers are not selectable, but we can still highlight them differently
-			line = statusStyle.Bold(true).Foreground(lipgloss.Color("62")).Render(fmt.Sprintf(" ┌─ %s ─", sectionName))
+			line = s.status.Bold(true).Foreground(lipgloss.Color("62")).Render(fmt.Sprintf(" ┌─ %s ─", sectionName))
 		} else {
 			// Render service
 			var service *systemd.ServiceState
@@ -296,12 +330,12 @@ func (m *Model) renderServicesList(height int) string {
 			if i == m.selectedIndex {
 				// If we're currently showing `systemctl cat` for this service, tint the selected row.
 				if m.rightMode == rightPaneCat {
-					line = selectedCatStyle.Render(fmt.Sprintf(" %s %s", indicator, name))
+					line = s.selectedCat.Render(fmt.Sprintf(" %s %s", indicator, name))
 				} else {
-					line = selectedStyle.Render(fmt.Sprintf(" %s %s", indicator, name))
+					line = s.selected.Render(fmt.Sprintf(" %s %s", indicator, name))
 				}
 			} else {
-				line = normalStyle.Render(fmt.Sprintf(" %s %s", indicator, name))
+				line = s.normal.Render(fmt.Sprintf(" %s %s", indicator, name))
 			}
 		}
 
@@ -314,9 +348,9 @@ func (m *Model) renderServicesList(height int) string {
 	}
 
 	content := strings.Join(lines[:innerHeight], "\n")
-	leftBorder := borderStyle
+	leftBorder := s.border
 	if m.focus == focusLeft && !m.helpMode {
-		leftBorder = focusedBorderStyle
+		leftBorder = s.focusedBorder
 	}
 	return leftBorder.
 		Width(leftPaneWidth).
@@ -326,6 +360,7 @@ func (m *Model) renderServicesList(height int) string {
 
 // renderLogs renders the right pane with logs
 func (m *Model) renderLogs(height int) string {
+	s := m.styles()
 	innerHeight := height - 2
 	if innerHeight < 1 {
 		innerHeight = 1
@@ -363,9 +398,9 @@ func (m *Model) renderLogs(height int) string {
 
 	var lines []string
 	if m.followMode {
-		lines = append(lines, statusStyle.Render(" [FOLLOW MODE]"))
+		lines = append(lines, s.status.Render(" [FOLLOW MODE]"))
 	} else if len(m.logLines) == 0 {
-		lines = append(lines, normalStyle.Render("No logs available"))
+		lines = append(lines, s.normal.Render("No logs available"))
 	}
 
 	for _, line := range m.logLines[start:] {
@@ -374,7 +409,7 @@ func (m *Model) renderLogs(height int) string {
 		if len(line) > maxWidth {
 			line = line[:maxWidth] + "..."
 		}
-		lines = append(lines, normalStyle.Render(line))
+		lines = append(lines, s.normal.Render(line))
 	}
 
 	// Pad to fill the inner border height.
@@ -384,9 +419,9 @@ func (m *Model) renderLogs(height int) string {
 
 	content := strings.Join(lines[:innerHeight], "\n")
 
-	rightBorder := borderStyle
+	rightBorder := s.border
 	if m.focus == focusRight && !m.helpMode {
-		rightBorder = focusedBorderStyle
+		rightBorder = s.focusedBorder
 	}
 	return rightBorder.
 		Width(m.width - leftPaneWidth - 2).
@@ -396,15 +431,16 @@ func (m *Model) renderLogs(height int) string {
 
 // renderCat renders the right pane with `systemctl cat` output for the selected unit.
 func (m *Model) renderCat(height int) string {
+	s := m.styles()
 	innerHeight := height - 2
 	if innerHeight < 1 {
 		innerHeight = 1
 	}
 
 	if len(m.catLines) == 0 {
-		rightBorder := borderStyle
+		rightBorder := s.border
 		if m.focus == focusRight && !m.helpMode {
-			rightBorder = focusedBorderStyle
+			rightBorder = s.focusedBorder
 		}
 		return rightBorder.
 			Width(m.width - leftPaneWidth - 2).
@@ -430,7 +466,7 @@ func (m *Model) renderCat(height int) string {
 		if len(line) > maxWidth {
 			line = line[:maxWidth] + "..."
 		}
-		lines = append(lines, normalStyle.Render(line))
+		lines = append(lines, s.normal.Render(line))
 		if len(lines) >= innerHeight {
 			break
 		}
@@ -441,9 +477,9 @@ func (m *Model) renderCat(height int) string {
 	}
 
 	content := strings.Join(lines[:innerHeight], "\n")
-	rightBorder := borderStyle
+	rightBorder := s.border
 	if m.focus == focusRight && !m.helpMode {
-		rightBorder = focusedBorderStyle
+		rightBorder = s.focusedBorder
 	}
 	return rightBorder.
 		Width(m.width - leftPaneWidth - 2).
@@ -453,6 +489,7 @@ func (m *Model) renderCat(height int) string {
 
 // renderFooter renders the footer with keybindings and status
 func (m *Model) renderFooter() string {
+	s := m.styles()
 	keyMap := DefaultKeyMap
 	keys := []string{
 		keyMap.Help.Help().Key + ":" + keyMap.Help.Help().Desc,
@@ -467,6 +504,7 @@ func (m *Model) renderFooter() string {
 		keyMap.Enable.Help().Key + ":" + keyMap.Enable.Help().Desc,
 		keyMap.Disable.Help().Key + ":" + keyMap.Disable.Help().Desc,
 		keyMap.DaemonReload.Help().Key + ":" + keyMap.DaemonReload.Help().Desc,
+		keyMap.Theme.Help().Key + ":" + keyMap.Theme.Help().Desc,
 		keyMap.Follow.Help().Key + ":" + keyMap.Follow.Help().Desc,
 		keyMap.Quit.Help().Key + ":" + keyMap.Quit.Help().Desc,
 	}
@@ -476,11 +514,11 @@ func (m *Model) renderFooter() string {
 	// Status message
 	status := m.statusMessage
 	if strings.Contains(status, "Failed") || strings.Contains(status, "Error") {
-		status = errorStyle.Render(status)
+		status = s.error.Render(status)
 	} else if strings.Contains(status, "Successfully") {
-		status = successStyle.Render(status)
+		status = s.success.Render(status)
 	} else {
-		status = statusStyle.Render(status)
+		status = s.status.Render(status)
 	}
 
 	// Truncate if too long
@@ -492,7 +530,7 @@ func (m *Model) renderFooter() string {
 	footerLine1 := keybindings
 	footerLine2 := status
 
-	return footerStyle.
+	return s.footer.
 		Width(m.width).
 		Render(footerLine1 + "\n" + footerLine2)
 }

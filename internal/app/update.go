@@ -39,7 +39,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 
 	case tickMsg:
-		return m, tea.Batch(m.refreshServices(), m.tick())
+		return m, tea.Batch(m.refreshServices(), m.getCPUSample(), m.tick())
 
 	case refreshServicesMsg:
 		if msg.err == nil {
@@ -47,6 +47,31 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if msg.serviceMap != nil {
 				m.serviceMap = msg.serviceMap
 			}
+		}
+		return m, nil
+
+	case cpuSampleMsg:
+		if msg.err == nil {
+			// Compute CPU usage from deltas.
+			if m.cpuPrevTotal != 0 && msg.total > m.cpuPrevTotal {
+				dTotal := msg.total - m.cpuPrevTotal
+				dIdle := uint64(0)
+				if msg.idle > m.cpuPrevIdle {
+					dIdle = msg.idle - m.cpuPrevIdle
+				}
+				if dTotal > 0 {
+					usage := (float64(dTotal-dIdle) / float64(dTotal)) * 100.0
+					if usage < 0 {
+						usage = 0
+					}
+					if usage > 100 {
+						usage = 100
+					}
+					m.cpuUsage = usage
+				}
+			}
+			m.cpuPrevTotal = msg.total
+			m.cpuPrevIdle = msg.idle
 		}
 		return m, nil
 
@@ -192,6 +217,10 @@ func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case key.Matches(msg, keyMap.Help):
 		m.helpMode = true
+		return m, nil
+
+	case key.Matches(msg, keyMap.Theme):
+		m.invertTheme = !m.invertTheme
 		return m, nil
 
 	case key.Matches(msg, keyMap.Left):

@@ -44,12 +44,16 @@ type Model struct {
 	serviceMap    map[string]int // Maps service name to index in services slice
 	selectedIndex int
 	hostname      string
+	cpuUsage      float64
+	cpuPrevTotal  uint64
+	cpuPrevIdle   uint64
 	logLines      []string
 	catLines      []string
 	followMode    bool
 	helpMode      bool
 	rightMode     rightPaneMode
 	focus         focusPane
+	invertTheme   bool
 	// Right pane scroll state (only used when focused; logs default to tail when not focused).
 	logTop int
 	catTop int
@@ -107,6 +111,7 @@ func NewModel(items []ListItem) *Model {
 		helpMode:      false,
 		rightMode:     rightPaneLogs,
 		focus:         focusLeft,
+		invertTheme:   false,
 		logTop:        -1,
 		catTop:        0,
 		statusMessage: "Ready",
@@ -119,6 +124,7 @@ func (m *Model) Init() tea.Cmd {
 		m.refreshServices(),
 		m.loadLogs(),
 		m.startFollowMode(),
+		m.getCPUSample(),
 		m.tick(),
 	)
 }
@@ -374,6 +380,7 @@ type KeyMap struct {
 	Help    key.Binding
 	Escape  key.Binding
 	Enter   key.Binding
+	Theme   key.Binding
 	Follow  key.Binding
 	Refresh key.Binding
 	Quit    key.Binding
@@ -443,6 +450,10 @@ var DefaultKeyMap = KeyMap{
 	Enter: key.NewBinding(
 		key.WithKeys("enter", "return"),
 		key.WithHelp("enter", "systemctl cat"),
+	),
+	Theme: key.NewBinding(
+		key.WithKeys("p"),
+		key.WithHelp("p", "theme"),
 	),
 	Follow: key.NewBinding(
 		key.WithKeys("f"),
