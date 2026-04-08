@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/lipgloss"
@@ -122,7 +123,10 @@ func (m *Model) View() string {
 	if host == "" {
 		host = "unknown"
 	}
-	headerText := fmt.Sprintf("lazysystemd - %s - CPU %.1f%%", host, m.cpuUsage)
+	now := time.Now()
+	const clockFmt = "2006/01/02 15:04:05"
+	headerText := fmt.Sprintf("lazysystemd - %s - CPU %5.1f%% - (UTC) %s | (local) %s",
+		host, m.cpuUsage, now.UTC().Format(clockFmt), now.Format(clockFmt))
 	header := s.title.Height(headerHeight).Render(headerText)
 
 	// Footer
