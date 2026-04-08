@@ -38,6 +38,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
+
 	case tickMsg:
 		return m, tea.Batch(m.refreshServices(), m.getCPUSample(), m.tick())
 
@@ -193,6 +196,77 @@ func (m *Model) watchFollowChan() tea.Cmd {
 }
 
 type followStoppedMsg struct{}
+
+// handleMouse maps clicks and wheel to focus and list selection (coordinates match lipgloss layout in View).
+func (m *Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.helpMode || m.width == 0 || m.height == 0 {
+		return m, nil
+	}
+
+	ch := m.mainContentHeight()
+	// Row 0: header; rows 1..ch: split panes; then footer.
+	if msg.Y < 1 || msg.Y > ch {
+		return m, nil
+	}
+
+	leftPane := msg.X < leftPaneWidth
+
+	switch msg.Button {
+	case tea.MouseButtonWheelUp:
+		if leftPane {
+			return m, m.selectItemIndex(m.prevServiceIndex(m.selectedIndex))
+		}
+		if !m.followMode {
+			m.focus = focusRight
+			m.scrollRightPane(-1)
+		}
+		return m, nil
+
+	case tea.MouseButtonWheelDown:
+		if leftPane {
+			return m, m.selectItemIndex(m.nextServiceIndex(m.selectedIndex))
+		}
+		if !m.followMode {
+			m.focus = focusRight
+			m.scrollRightPane(1)
+		}
+		return m, nil
+
+	case tea.MouseButtonLeft:
+		if msg.Action != tea.MouseActionPress {
+			return m, nil
+		}
+		if leftPane {
+			innerHeight, startIdx, endIdx := m.listScrollWindow(ch)
+			pr := msg.Y - 1 // row within full-height content strip
+			if pr < 1 || pr > innerHeight {
+				return m, nil
+			}
+			v := pr - 1
+			visible := endIdx - startIdx
+			if v >= visible {
+				return m, nil
+			}
+			idx := startIdx + v
+			if idx < 0 || idx >= len(m.items) {
+				return m, nil
+			}
+			m.focus = focusLeft
+			if m.items[idx].IsSection {
+				return m, nil
+			}
+			return m, m.selectItemIndex(idx)
+		}
+		m.focus = focusRight
+		if m.rightMode == rightPaneLogs && m.logTop < 0 {
+			m.logTop = len(m.logLines)
+		}
+		return m, nil
+
+	default:
+		return m, nil
+	}
+}
 
 // handleKey processes keyboard input
 func (m *Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

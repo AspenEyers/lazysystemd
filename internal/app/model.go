@@ -362,6 +362,110 @@ func (m *Model) setStatus(msg string) tea.Cmd {
 
 type statusTimeoutMsg struct{}
 
+// mainContentHeight is the height of the split-pane area between header and footer (matches View).
+func (m *Model) mainContentHeight() int {
+	const headerHeight = 1
+	const footerHeight = 2
+	availableHeight := m.height - 2
+	if availableHeight < 1 {
+		availableHeight = 1
+	}
+	contentHeight := availableHeight - headerHeight - footerHeight
+	if contentHeight < 1 {
+		contentHeight = 1
+	}
+	return contentHeight
+}
+
+// listScrollWindow matches renderServicesList scrolling: innerHeight, first/last+1 item index.
+func (m *Model) listScrollWindow(contentHeight int) (innerHeight, startIdx, endIdx int) {
+	innerHeight = contentHeight - 2
+	if innerHeight < 1 {
+		innerHeight = 1
+	}
+	startIdx = 0
+	if len(m.items) > innerHeight {
+		startIdx = m.selectedIndex - (innerHeight / 2)
+		if startIdx < 0 {
+			startIdx = 0
+		}
+		maxStart := len(m.items) - innerHeight
+		if startIdx > maxStart {
+			startIdx = maxStart
+		}
+	}
+	endIdx = startIdx + innerHeight
+	if endIdx > len(m.items) {
+		endIdx = len(m.items)
+	}
+	return innerHeight, startIdx, endIdx
+}
+
+func (m *Model) prevServiceIndex(from int) int {
+	for i := from - 1; i >= 0; i-- {
+		if !m.items[i].IsSection {
+			return i
+		}
+	}
+	return from
+}
+
+func (m *Model) nextServiceIndex(from int) int {
+	for i := from + 1; i < len(m.items); i++ {
+		if !m.items[i].IsSection {
+			return i
+		}
+	}
+	return from
+}
+
+// selectItemIndex selects a list row (rejects section headers). Matches keyboard selection side effects.
+func (m *Model) selectItemIndex(idx int) tea.Cmd {
+	if idx < 0 || idx >= len(m.items) || m.items[idx].IsSection {
+		return nil
+	}
+	m.focus = focusLeft
+	if m.selectedIndex == idx {
+		return nil
+	}
+	wasFollowing := m.followMode
+	m.selectedIndex = idx
+	m.stopFollowMode()
+	m.logTop = -1
+	m.catTop = 0
+	if wasFollowing {
+		m.followMode = true
+		return tea.Batch(m.loadLogs(), m.startFollowMode())
+	}
+	m.followMode = false
+	return m.loadRightPane()
+}
+
+func (m *Model) scrollRightPane(delta int) {
+	if m.followMode {
+		return
+	}
+	switch m.rightMode {
+	case rightPaneCat:
+		if delta < 0 && m.catTop > 0 {
+			m.catTop--
+		}
+		if delta > 0 && m.catTop < max(0, len(m.catLines)-1) {
+			m.catTop++
+		}
+	case rightPaneLogs:
+		if m.logTop < 0 {
+			m.logTop = len(m.logLines)
+		}
+		if delta < 0 && m.logTop > 0 {
+			m.logTop--
+		}
+		if delta > 0 && m.logTop < len(m.logLines) {
+			m.logTop++
+		}
+	}
+}
+
 // KeyMap defines the keybindings
 type KeyMap struct {
 	Up      key.Binding

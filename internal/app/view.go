@@ -176,6 +176,7 @@ func (m *Model) renderHelp() string {
 
 	lines := []string{
 		"Keys",
+		"  (mouse)       Click list row / pane; wheel scrolls",
 		"  ↑/k, ↓/j      Move selection",
 		"  g / G         Top / bottom",
 		"  s             Start",
